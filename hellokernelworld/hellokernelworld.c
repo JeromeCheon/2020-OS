@@ -8,12 +8,12 @@ MODULE_LICENSE("GPL");
 static 
 char hello_name[128] = { 0x0, } ;
 
-static 
+static // NOT YET DEFINED 
 int hello_open(struct inode *inode, struct file *file) {
 	return 0 ;
 }
 
-static 
+static // NOT YET DEFINED
 int hello_release(struct inode *inode, struct file *file) {
 	return 0 ;
 }
@@ -25,14 +25,14 @@ ssize_t hello_read(struct file *file, char __user *ubuf, size_t size, loff_t *of
 	ssize_t toread ;
 
 	sprintf(buf, "Hello %s from kernel!\n", hello_name) ;
-	"Hello from kernel!"
+	//	"Hello from kernel!"
 
-	if (strlen(buf) >= *offset + size) {
-		toread = size ;
-	}
-	else {
-		toread = strlen(buf) - *offset ;
-	}
+		if (strlen(buf) >= *offset + size) {
+			toread = size ;
+		}
+		else {
+			toread = strlen(buf) - *offset ;
+		}
 
 	if (copy_to_user(ubuf, buf + *offset, toread))
 		return -EFAULT ;	
@@ -42,7 +42,7 @@ ssize_t hello_read(struct file *file, char __user *ubuf, size_t size, loff_t *of
 	return toread ;
 }
 
-static 
+	static 
 ssize_t hello_write(struct file *file, const char __user *ubuf, size_t size, loff_t *offset) 
 {
 	char buf[128] ;
@@ -61,22 +61,23 @@ ssize_t hello_write(struct file *file, const char __user *ubuf, size_t size, lof
 
 static const struct file_operations hello_fops = {
 	.owner = 	THIS_MODULE,
-	.open = 	hello_open,
-	.read = 	hello_read,
+	.open = 	hello_open, // We didn't define it in this example.
+	.read = 	hello_read, 
 	.write = 	hello_write,
-	.llseek = 	seq_lseek,
-	.release = 	hello_release,
+	.llseek = 	seq_lseek, // also didn't define it
+	.release = 	hello_release, // also didn't define it
 } ;
 
 static 
-int __init hello_init(void) {
+int __init hello_init(void) { // for using module_init
+	// proc_create function will be invoked and it will make a virtual file.
 	proc_create("hellokernelworld", S_IRUGO | S_IWUGO, NULL, &hello_fops) ;
 	return 0;
 }
 
 static 
-void __exit hello_exit(void) {
-	remove_proc_entry("hellokernelworld", NULL) ;
+void __exit hello_exit(void) { // for using module_exit
+	remove_proc_entry("hellokernelworld", NULL) ; // remove_proc_entry will be invoked when we deload this hellokernelworld LKM.
 }
 
 module_init(hello_init);

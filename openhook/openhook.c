@@ -9,37 +9,39 @@
 #include <asm/unistd.h>
 
 MODULE_LICENSE("GPL");
-
+// this filepath was given from user application system through 'proc file system'
 char filepath[128] = { 0x0, } ;
 void ** sctable ;
-int count = 0 ;
-
+int count = 0 ; //  this is a global variable. 
+// *orig_sys_open is a function pointer. 
 asmlinkage int (*orig_sys_open)(const char __user * filename, int flags, umode_t mode) ; 
 
 asmlinkage int openhook_sys_open(const char __user * filename, int flags, umode_t mode)
 {
-	char fname[256] ;
-
+	char fname[256] ; // kernel data in kernel space. Once get some file name from user space, it delievers into fname.
+	
 	copy_from_user(fname, filename, 256) ;
-
+								// this filepath is the array like above
 	if (filepath[0] != 0x0 && strcmp(filepath, fname) == 0) {
-		count++ ;
+		// if the target file is specified with proc file sys, plus count.
+		// and it will be retrieved at sprintf function below.
+		count++ ; 
 	}
 	return orig_sys_open(filename, flags, mode) ;
 }
 
 
-static 
+static // we didn't define here, open feature. 
 int openhook_proc_open(struct inode *inode, struct file *file) {
 	return 0 ;
 }
 
-static 
+static // also we didn't define here, release part 
 int openhook_proc_release(struct inode *inode, struct file *file) {
 	return 0 ;
 }
 
-static
+	static
 ssize_t openhook_proc_read(struct file *file, char __user *ubuf, size_t size, loff_t *offset) 
 {
 	char buf[256] ;
@@ -57,7 +59,7 @@ ssize_t openhook_proc_read(struct file *file, char __user *ubuf, size_t size, lo
 	return toread ;
 }
 
-static 
+	static 
 ssize_t openhook_proc_write(struct file *file, const char __user *ubuf, size_t size, loff_t *offset) 
 {
 	char buf[128] ;
@@ -85,12 +87,14 @@ static const struct file_operations openhook_fops = {
 } ;
 
 static 
-int __init openhook_init(void) {
+int __init openhook_init(void) { // openhook init part
 	unsigned int level ; 
 	pte_t * pte ;
-
+	
+	// this proc_create is a kind of an agent. Remember, I've already dealt with this 'agent concept' in Hellokernelworld example. 
 	proc_create("openhook", S_IRUGO | S_IWUGO, NULL, &openhook_fops) ;
-
+	
+	// The pointer of pointer sctable is used here to bring up the address of sys call handler table.  
 	sctable = (void *) kallsyms_lookup_name("sys_call_table") ;
 
 	orig_sys_open = sctable[__NR_open] ;
@@ -99,6 +103,7 @@ int __init openhook_init(void) {
 	if (pte->pte &~ _PAGE_RW) 
 		pte->pte |= _PAGE_RW ;	
 
+	// we will check what type is delivered to system call 
 	sctable[__NR_open] = openhook_sys_open ;
 
 	return 0;
@@ -108,9 +113,10 @@ static
 void __exit openhook_exit(void) {
 	unsigned int level ;
 	pte_t * pte ;
+	// A procedure of deloading the LKM 'openhook' from the kernel
 	remove_proc_entry("openhook", NULL) ;
 
-	sctable[__NR_open] = orig_sys_open ;
+	sctable[__NR_open] = orig_sys_open ; // yes. after deallocate the module, we will put the original open system call back into __NR_open
 	pte = lookup_address((unsigned long) sctable, &level) ;
 	pte->pte = pte->pte &~ _PAGE_RW ;
 }
