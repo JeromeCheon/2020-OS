@@ -7,7 +7,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <asm/unistd.h>
-
+//#include <linux/cred.h>
 MODULE_LICENSE("GPL");
 // this filepath was given from user application system through 'proc file system'
 char filepath[128] = { 0x0, } ;
@@ -19,7 +19,7 @@ asmlinkage int (*orig_sys_open)(const char __user * filename, int flags, umode_t
 asmlinkage int openhook_sys_open(const char __user * filename, int flags, umode_t mode)
 {
 	char fname[256] ; // kernel data in kernel space. Once get some file name from user space, it delievers into fname.
-	
+    
 	copy_from_user(fname, filename, 256) ;
 								// this filepath is the array like above
 	if (filepath[0] != 0x0 && strcmp(filepath, fname) == 0) {

@@ -13,8 +13,26 @@
  *	- 
  *
  * */
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <sys/types.h>
 #include <linux/syscalls.h>
+// 파일 디스크립터. 나중에 jerry가 restore한다는게 close함수를 써서 release해줘야 한다는 뜻.
+int main(int argc, char* argv[]){ // input으로 uname과 fname을 받을 것.
+    int fd ;
+    fd = open() ;
+    
+    
+    
+}
+
+
+/*#include <linux/syscalls.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
@@ -135,4 +153,4 @@ static void __exit jerry_exit(void){
 }
 
 module_init(jerry_init);
-module_exit(jerry_exit);
+module_exit(jerry_exit);*/
