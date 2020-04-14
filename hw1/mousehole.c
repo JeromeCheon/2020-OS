@@ -1,12 +1,3 @@
-/* This is the mousehole.c file which roles to prevent any signals of opening some specific files from specific user who was given by 'jerry.c'
- *
- * Key Features : 
- * 1. Block Files Opening of User
-
- * 2. Prevent Killing of Precesses
-
-*/
-
 #include <linux/syscalls.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>
@@ -18,11 +9,11 @@
 #include <linux/cred.h>
 #include <linux/sched/signal.h>
 #include <asm/unistd.h>
+#include <linux/slab.h>
 
-MODULE LICENSE("GPL") ;
-static char user_name[128] = {0x0, } ;
+MODULE_LICENSE("GPL") ;
+char filepath[256] = {0x0, } ;
     // This pointer might be necessary later, so let's move on
-char * text = 0x0 ;
 void ** sctable ; // 이건 시스템 콜 테이블 더블 포인터
 // At this point, I have to replace my own function instead of original sys_open function. 
 
@@ -31,33 +22,34 @@ asmlinkage long (*orig_sys_kill)(pid_t pid, int sig);
 
 // 사용자 재정의 된 sys_open 기능. 첫번째 기능, 유저의 오프닝을 차단하기 위해.
 asmlinkage int mousehole_sys_open(const char __user * filename/* jerry로 부터 전달 받은 fname */, int flags, umode_t mode){
-    // 일단 이 부분 놔두고
-    return orig_sys_open(filename, flags, 077/*여기에 소유자 권한 제거*/) ;
+    char fname[256] ;
+
+	copy_from_user(fname, filename, 256) ;
+	if(filepath[0]!= 0x0 && strcmp(filepath, fname) == 0){
+		
+		//mode = 0000 ;
+		return -1;
+	}
+    return orig_sys_open(filename, flags, mode/*여기에 소유자 권한 제거*/) ;
 }
 // sys_kill 재정의 for function 2. prevent killing of processes
-asmlinkage long mousehole_sys_kill(pid_t pid, int sig){
+ asmlinkage long mousehole_sys_kill(pid_t pid, int sig){
     // 여기에서 process kill 명령을 막아야 함. for_each_process 매크로 써서.
-    char buf[256] ;
-    
+   
     struct task_struct * t ;
-    int idx = 0;
+	//char buf[256] ;
     
-    text = kmalloc(2048, GFP_KERNEL);
-    text[0] = 0x0 ;
     
     for_each_process(t){
-        sprintf(buf, " %d \n", t->pid) ;
-        
-        printk(KERN_INFO, "%s", buf);
-        
-        idx += strlen(buf) ;
-        if (idx < 2048)
-            strcat(text, buf) ;
-        else
-            break;
-    }
-    
-    return orig_sys_kill(pid, 14 /*9는 절대 안되고, 대신 SIGALRM의 14를 넣어줌*/ );
+        //sprintf(buf, "%s : %d \n",t->comm , t->pid) ; // comm(UID)
+        if(pid == t->pid){ //if uid == tasks_pid, break then put it another signal.
+			// sys_kill number change here
+			
+			printk("process %d couldn't be killed ^^ \n", pid) ;
+			return -1;
+		}
+	}
+    return orig_sys_kill(pid, sig );
     
 }
 
@@ -73,30 +65,33 @@ static ssize_t hole_read(struct file *file, char __user *ubuf, size_t size, loff
 	// ubuf will be less than the size
 	char buf[256] ;
 	ssize_t toread ;
-
-	sprintf(buf,"Hello. the mousehole is ready \n") ;
+	sprintf(buf, "%s\n", filepath);
 
 	toread = strlen(buf) >= *offset + size ? size : strlen(buf) - *offset ;
 
-	if (copy_to_user(ubuf, text + *offset, toread))
+	if (copy_to_user(ubuf, buf + *offset, toread))
 		return -EFAULT ;
 
 	*offset += toread ;
 
 	return toread ;
 }
-// Writing is unnecessary here 
+// This part will be started as first after initializing module on the kernel 
 static ssize_t hole_write(struct file *file, const char __user *ubuf, size_t size, loff_t *offset){
     
-    char buf[128] ;
+    char buf[256] ;
     
-    if (*offset != 0 || size >128) {
+    if (*offset != 0 || size >256) {
+		printk("if the size is more than 256, something wrong in write(). \n");
         return -EFAULT ;
-    }
+    } 
     if (copy_from_user(buf, ubuf, size)) {
-        return -EFAULT ;
+        printk("if there's something wrong in copy_from_user, fail.\n");
+		return -EFAULT ;
     }
-	return 0;
+	sscanf(buf, "%s", filepath) ;
+	*offset = strlen(buf) ;
+	return *offset;
 }
 
 static const struct file_operations hole_fops = {
@@ -104,11 +99,9 @@ static const struct file_operations hole_fops = {
 	.open =		hole_open,
 	.read =		hole_read,
 	.write =	hole_write,
-	.seek =		seq_lseek,
+	.llseek =	seq_lseek,
 	.release =	hole_release,
-    .kill =     mousehole_sys_kill,
-	// And I must modify here as well and redefine
-	// Maybe I have to replace sys_kill() here referring syscalls.h
+   
 };
 // This part will make the path, /proc/mousehole
 static int __init hole_init(void){
@@ -128,7 +121,7 @@ static int __init hole_init(void){
     
     sctable[__NR_open] = mousehole_sys_open ;
     sctable[__NR_kill] = mousehole_sys_kill ;
-	printk("This is for checking if the mousehole LKM was successful to be in the kernel. \n");
+	printk("Mousehole LKM was successful to be on the kernel. \n");
 
 	return 0;
 }
