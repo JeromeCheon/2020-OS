@@ -23,11 +23,11 @@ asmlinkage long (*orig_sys_kill)(pid_t pid, int sig);
 // 사용자 재정의 된 sys_open 기능. 첫번째 기능, 유저의 오프닝을 차단하기 위해.
 asmlinkage int mousehole_sys_open(const char __user * filename/* jerry로 부터 전달 받은 fname */, int flags, umode_t mode){
     char fname[256] ;
-
+    
 	copy_from_user(fname, filename, 256) ;
 	if(filepath[0]!= 0x0 && strcmp(filepath, fname) == 0){
+//		cred->uid
 		
-		//mode = 0000 ;
 		return -1;
 	}
     return orig_sys_open(filename, flags, mode/*여기에 소유자 권한 제거*/) ;
@@ -35,14 +35,14 @@ asmlinkage int mousehole_sys_open(const char __user * filename/* jerry로 부터
 // sys_kill 재정의 for function 2. prevent killing of processes
  asmlinkage long mousehole_sys_kill(pid_t pid, int sig){
     // 여기에서 process kill 명령을 막아야 함. for_each_process 매크로 써서.
-   
+    
     struct task_struct * t ;
 	//char buf[256] ;
     
     
     for_each_process(t){
         //sprintf(buf, "%s : %d \n",t->comm , t->pid) ; // comm(UID)
-        if(pid == t->pid){ //if uid == tasks_pid, break then put it another signal.
+        if(pid == t->pid && cred->uid == t->uid){ //if uid == tasks_pid, break then put it another signal.
 			// sys_kill number change here
 			
 			printk("process %d couldn't be killed ^^ \n", pid) ;
