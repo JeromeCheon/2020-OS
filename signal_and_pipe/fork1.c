@@ -15,7 +15,6 @@ int main(){
 		execl("./hello", "hello", (char *) 0x0);
 	}
 	else{
-		wait(0x0);
 		printf("End\n");
 	}
 }
