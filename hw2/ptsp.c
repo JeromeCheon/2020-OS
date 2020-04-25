@@ -1,3 +1,4 @@
+
 /* TSP Problem using MultiProcessing */
 /* To build the code, I have to use process creation, join, pipe, signal concepts properly. */
 
@@ -36,6 +37,7 @@ handler(int sig){			/* signal Handler */
 		exit(0);
 
 	}
+
 	//else if (sig == SIGCHLD){	}
 }
 
@@ -115,6 +117,7 @@ child_proc(int idx){
 int
 main(int argc, char** argv){
 	// argv[0] = exe command , argv[1] = tsp file instance , argv[2] = number of children 
+
 	pid_t child[12] ; // Maximum 12 child processes should be available.
 	pid_t child_pid ;
 	int i = 0, j = 0; // variables for loops or something
@@ -152,6 +155,7 @@ main(int argc, char** argv){
 			route[i][j] = t ;
 		}
 	}
+
 	fclose(fp) ; 
 
 	/* create bi-directional pipes to communicate parent and children */
