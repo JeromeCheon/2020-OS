@@ -18,25 +18,36 @@ int path[MAXSIZE] ;
 int covered[MAXSIZE] ;
 long tot_weight = 0L ;
 unsigned long long count = 0ULL ; // At 'count', children will count how many routes they covered.
-int pipes_p[12][2] ; // parent' pipes[12][2]
-int pipes_c[12][2] ; // children' pipes[12][2]
 int lines = -1 ; // line count from tsp file. 
 long min = -1L ; // Do I have to use malloc to initialize with -1 to give child array?
+short terminate = 0 ; // Initialize as FALSE 
 
 void
-handler(int sig){			/* signal Handler */
+parent_handler(int sig){			/* Handler for master process */
 	int i;
 	if (sig == SIGINT){
-		// printf(" The best solution is %ld ( )\n", min );
-		// printf(" And the number of covered routes are %llu \n", count );
-		// then terminate children processes
+		// for each slave pid, kill(INT, pid) ;
+		terminate = 1 ;
 		for(i = 0 ; i < lines ; i++) {	free(route[i]) ;  }
 		free(route) ; 
-
 		exit(0);
 
 	}
-	//else if (sig == SIGCHLD){	}
+}
+
+void
+child_handler(int sig){ /* Handler for children processes */
+	int i ;
+	if(sig == SIGINT){
+		terminater = 1 ;
+		exit(0) ;
+	}
+}
+
+void
+children(int prefix, int *p /* pipe file descripter */){
+	signal(SIGINT, child_handler) ;
+
 }
 
 void
@@ -47,7 +58,7 @@ _travel(int idx) { //professor's code
 		tot_weight += route[path[lines-1]][path[0]] ;
 		if(min == -1L || min > tot_weight) {
 			min = tot_weight ; 
-			
+
 			printf("%ld (", tot_weight) ;
 			for (i = 0 ; i < lines ; i++)
 				printf("%d ", path[i]) ;
@@ -79,39 +90,27 @@ travel(int start) { // professor's code
 }
 
 void
-parent_proc(int idx){
-	char buf[256] ;
-	char* str = "Please let me check. I'm parent\n" ;
-	//signal(SIGCHLD, handler) ;
-	//read(pipes_c[id][0], &tmp ,sizeof(tmp) ) ;
-	close(pipes_c[idx][1]) ;
-	close(pipes_p[idx][0]) ;
-	read(pipes_c[idx][0], buf, strlen(buf)) ;
-	
-	write(pipes_p[idx][1],str, strlen(str) ) ;
-	sleep(3) ;
-	printf("min num is %ld", min) ;
-	buf[0] = 0x0 ;
-	close(pipes_c[idx][0]) ;
-	close(pipes_p[idx][1]) ;
+spawning(int prefix) {
+	int pipes[2] ;
+
+	/* create unnamed pipes to communicate parent and children */
+	if (pipe(pipes) != 0 ){
+		perror("Create pipes Error! \n") ;
+		exit(1) ;
+	}
+	if((pid = fork()) == 0){ /* child */ 
+		children(prefix, p[0]) ;
+	}
+	else{ /* parent */
+		close(p[1]) ;
+		current_child_info(pid, p[0]) ;
+	}
 }
 
 void
-child_proc(int idx){
-	char buf[256] ;
-	char* str = "test from child\n" ; 
-	travel(idx) ;
-	close(pipes_c[idx][0]) ;
-	close(pipes_p[idx][1]) ;
+current_child_info(pid_t pid, int *p){
 	
-	write(pipes_c[idx][1], str , strlen(str)) ;
-	sleep(2) ;
-	read(pipes_p[idx][0], buf, strlen(buf)) ;
-	
-	buf[0] = 0x0 ;
-	exit(0);
 }
-
 int
 main(int argc, char** argv){
 	// argv[0] = exe command , argv[1] = tsp file instance , argv[2] = number of children 
@@ -120,11 +119,11 @@ main(int argc, char** argv){
 	int i = 0, j = 0; // variables for loops or something
 	int exit_code ;
 	int t = 0 ; 
-	char input[1024] ;
+	char f_input[1024] ;
+	// prefix variable necessary. But what type?? 
 
-	signal(SIGINT, handler);
+	signal(SIGINT, parent_handler);
 	if(argc != 3){
-
 		printf("Wrong Input! Usage : %s <tsp_instance> <number of children> \n", argv[0]);
 		exit(0);
 	}
@@ -134,10 +133,10 @@ main(int argc, char** argv){
 
 	/* To get a length of file instance */
 	while(!feof(fp)){
-		fgets(input, sizeof(input), fp) ;
+		fgets(f_input, sizeof(f_input), fp) ;
 		lines++ ; 
 	}
-	input[0] = 0x0 ; //clear the input buffer
+	f_input[0] = 0x0 ; //clear the input buffer
 
 	int **route = (int**) malloc(sizeof(int*) * lines) ;
 	for(i = 0 ; i< lines ; i++){
@@ -154,14 +153,9 @@ main(int argc, char** argv){
 	}
 	fclose(fp) ; 
 
-	/* create bi-directional pipes to communicate parent and children */
-	if (pipe(*pipes_p) != 0 || pipe(*pipes_c) !=0 ){
-		perror("Create pipes Error! \n") ;
-		exit(1) ;
-	}
-	
+
 	/* creating Children Processes */
-	for (i = 0 ; i < atoi(argv[2]) ; i++){
+	while ( ){
 		if ( (child_pid =fork() ) < 0) { /* fork fail */
 			perror (" Fork failed ! \n") ;
 			exit(1) ;
@@ -169,31 +163,22 @@ main(int argc, char** argv){
 		else if ( child_pid == 0) { /* Children */
 			printf("Parent : %d , child[%d] : %d\n", getppid(), i, getpid() /* child[i] */ ) ;
 			// then I have to connect children with parent via pipe(write)
-			//travel(i) ;
-			child_proc(i) ;
-			//signal(SIGCHLD, handler) ; // to give the solution and to be reforked
 			//exit(0) ;	
 		}
 		else { /* master(parent) process */
 			// using pipe read file operation, take the solution from children
-			parent_proc(i) ;
 			//waitpid(child[i], NULL, 0) ; 
 			//wait(0x0) ;
 			printf("Process %d spawned process %d\n", getpid(), child_pid) ;
 		}
 		wait(0x0) ;
 	}
-	
-	//wait(&exit_code);
-	
-
-	// printf(" The best solution is %d \n", tot_weight );
-	// printf(" And the number of covered routes are %llu \n", count );
-	//wait(&exit_code) ;
 
 	/* Deallocating the route table then terminate normally */
 	for(i = 0 ; i < lines ; i++) {	free(route[i]) ;  }
 	free(route) ;
+	printf(" The best solution is %ld \n", tot_weight );
+	printf(" And the number of covered routes are %llu \n", count );
 	printf("Matrix has been deallocated. Bye! \n");
 	exit(0) ;
 
