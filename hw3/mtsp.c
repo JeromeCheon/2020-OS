@@ -6,13 +6,14 @@
 #include <string.h>
 #include <sys/types.h> 
 #include <sys/wait.h>
+
 #define TRUE 1
 #define FALSE 0
 #define MAXSIZE 50 // Maximum city number
 
 int **route = {0,} ; // I need to allocate width and height dynamically using malloc. 
-int path[MAXSIZE] ;
-int covered[MAXSIZE] ;
+int path[MAXSIZE] ;  // destination vertex number will be stored here 
+int covered[MAXSIZE] ; // 1 (done) or 0 (not yet)
 int tot_weight = 0 ;
 unsigned long long count = 0ULL ; // At 'count', children will count how many routes they covered.
 int lines = -1 ; // line count from tsp file. 
@@ -42,13 +43,15 @@ child_handler(int sig){ /* Handler for children processes */
 		exit(0) ;
 	}
 }
+/*
 void
-child_proc(int* prefix, int *p /* pipe file descripter */){
+child_proc(int* prefix, int *p ){
 	signal(SIGINT, child_handler) ;
     close(p[0]) ;
     
 
 }
+*/
 void
 init_prefix(int** route){
     /* initialize prefix from the input number of nodes */
@@ -60,7 +63,7 @@ init_prefix(int** route){
 }
 
 void
-next_prefix(){
+next_prefix(int start){
     path[0] = 0 ;
     covered[0] = 1 ;
     _next_prefix(1) ;
