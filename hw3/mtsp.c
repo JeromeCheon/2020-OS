@@ -11,7 +11,7 @@
 #define FALSE 0
 #define MAXSIZE 50 // Maximum city number
 
-int **route = {0,} ; // I need to allocate width and height dynamically using malloc. 
+// int **route = {0,} ; // I need to allocate width and height dynamically using malloc. 
 int path[MAXSIZE] ;  // destination vertex number will be stored here 
 int covered[MAXSIZE] ; // 1 (done) or 0 (not yet)
 int tot_weight = 0 ;

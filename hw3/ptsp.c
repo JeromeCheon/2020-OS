@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/types.h> 
 #include <sys/wait.h>
+
 #define TRUE 1
 #define FALSE 0
 #define MAXSIZE 50 // Maximum city number
@@ -18,15 +19,15 @@ unsigned long long count = 0ULL ; // At 'count', children will count how many ro
 int lines = -1 ; // line count from tsp file. 
 long min = -1L ;
 short terminate = FALSE ; // Initialize as FALSE 
-int *end_prefix ={ 0x0 } ;
-int prefix_weight =0 ;
 
+/***************** Signal Handler *******************/
 void
 parent_handler(int sig){			/* Handler for master process */
 	int i;
 	if (sig == SIGINT){
+		// 만약에 현재 pid가 root의 pid가 아니면 kill();
 		// for each slave pid, kill(INT, pid) ;
-		terminate = 1 ;
+		terminate = TRUE ;
 		for(i = 0 ; i < lines ; i++) {	free(route[i]) ;  }
 		free(route) ; 
 		exit(0);
@@ -38,108 +39,148 @@ void
 child_handler(int sig){ /* Handler for children processes */
 	int i ;
 	if(sig == SIGINT){
-		terminate = 1 ;
+		terminate = TRUE ;
 		exit(0) ;
 	}
 }
-void
-child_proc(int* prefix, int *p /* pipe file descripter */){
-	signal(SIGINT, child_handler) ;
-    close(p[0]) ;
-    
 
+/***************** Prefix functions *******************/
+void
+swap(int* x, int* y){
+	int temp ;
+	temp = *x ;
+	*x = *y ;
+	*y = temp ;
 }
-void
-init_prefix(int** route){
-    /* initialize prefix from the input number of nodes */
-    int i ;
-	for(i=0 ; i < lines - 12 ; i++){
-        path[i] = i ;
-       // covered[i] = 1 ;
-    }
-}
-
-void
-next_prefix(){
-    path[0] = 0 ;
-    covered[0] = 1 ;
-    _next_prefix(1) ;
-    covered[0] = 0;
-}
-
-void
-_next_prefix(int idx){ // prefix[0], prefix[1], ..., prefix[N-13]
-    int i ;
-    int last_prefix = lines -12 ;
-
-    while (idx < last_prefix) {
-        if(idx == last_prefix - 1 ){ // when 0,1,2,3,4~15
-            
-            for(i = 0 ; i < lines ; i++){
-                if (covered[i] == 0 && path[idx] < i) {
-                    path[idx] = i ;
-                    covered[i] = 1 ;
-                    prefix_weight += route[path[idx-1]][i] ;
-                    if(i == lines - 1){ // when 0,1,2,3,15
-                        idx-- ;
-                        path[idx]++ ;
-                        covered[idx] =0 ;
-                        break ;
-                    }
-                    idx++ ;
-                    
-                    prefix_weight -= route[path[idx-1]][i] ;
-                    break ;
-                }
-            }
-        }
-        else{ // when 0,1,2,3,~
-            for (int i =0 ; i < lines ; i++) {
-                if (covered[i] == 0) {
-                    path[idx] = i ;
-                    covered[i] = 1 ;
-                    prefix_weight += route[path[idx-1]][i] ;
-                    idx++ ;
-                    break ;
-                }
-            }
-        }
-    }
-    prefix_weight -= route[path[idx-1]][i] ;
-    covered[i] = 0 ;
-
+int *
+next_prefix(int depth){
+	int i ;
+	int prefix[lines-12] ;
+	if( depth == lines-12 /* k */ ){ // 이게 마지막 배열 부분이면 
+		for (i = 0; i < depth ; i++ ){
+			prefix[i] = path[i] ; // 0, 1, 2 ~ 0, 1, 3 ~ ~
+		}
+		return prefix ; // 그리고 나서 바뀐 프리픽스 출력. 
+	}
+	for ( i = depth ; i < lines /* N */; i++){
+		// 재귀로 인해  for문 중첩 효과로 숫자를 변화해감. 
+		// 근데 여기서 covered를 어떻게 조건 넣고 break 하지..?
+		// 또 자식 프로세스 끝나고 다시 이 함수 next_prefix(0)를 호출했을 때 앞에서 구한 것 다 건너뛸 수 있나..? 
+			swap(&path[i], &path[depth]) ;
+			
+			next_prefix(depth+1) ;
+			swap(&path[i], &path[depth]) ;
+	}
+	return prefix ;
 }
 
-void
-spawning(int* prefix) {
-	int pipes[2] ; // 0 : reader / 1 : writer
-    pid_t child_pid ;
-	/* create unnamed pipes to communicate parent and children */
-	if (pipe(pipes) != 0 ){
-		perror("Create pipes Error! \n") ;
+int *
+init_prefix(){
+	/* initialize prefix from the input number of nodes */
+	int i ;
+	int prefix[lines-12] ;
+	for ( i = 0 ; i < lines - 12 ; i++){
+		prefix[i] = i ;
+		covered[i] = 1 ;
+	}
+	// [0, 1, 2, 3, 4]
+	return prefix; 
+}
+
+int * 
+end_prefix(){
+	/* Getting the last prefix combination */
+	int i ;
+	int prefix[lines-12] ;
+	for ( i = 0 ; i < lines - 12 ; i++){
+		prefix[i] = lines - 1 - i ;
+		covered[i] = 1 ;
+	}
+	// [16, 15, 14, 13, 12]
+	return prefix; 
+}
+
+
+/***************** children's task allocation  *******************/
+
+void 		 
+spawning(int* prefix){ 	// start_a_new_slave with an assigned new prefix 
+
+	int pipes[2] ; // 0: reader / 1: writer
+	pid_t child_pid ;
+	// create unnamed pipes to communicate parent and children 
+	if ( pipe(pipes) != 0){ // error handling of pipe creation
+		perror("Create pipes Error! \n" ) ;
 		exit(1) ;
 	}
-	if((child_pid = fork()) == 0){ /* child */
-		child_proc(prefix, pipes) ;
+	if ((child_pid = fork()) == 0) { /* child */
+		//child_proc(prefix, pipes) ;
 	}
 	else{ /* parent */
-		close(p[1]) ;
-		current_child_info(child_pid, p[0]) ;
+		close(pipes[1]) ;
+		//	current_child_info(child_pid, pipes[0]) ;
 	}
+}
+void
+child_proc(int* prefix, int* pipes){
+	int best, n_routes ;
+	signal(SIGINT, child_handler) ;
+	close(pipes[0]) ; // 읽는 것은 필요없고 여기선 쓰기만 할 것.
+	// best, n_routes = travel(prefix) ;
+	// best랑 n_routes를 쓰기 위해 write함수 사용.
+	// write(pipes[1], , ) ; 
 }
 
 void
-current_child_info(pid_t pid, int *p){
-	
+child_info(pid_t pid, int* pipes){
+
+}
+void
+result_and_best(pid_t pid) {
+
 }
 
+void
+travel(int* prefix){
+	path[0] = start ;
+	covered[start] = 1 ;
+	_travel(1) ;
+	covered[start] = 0 ;
+}
+void
+_travel(int idx){
+	int i ;
+	if (idx == 17 ){
+		length += route[path[16]][path[0]] ;
+		if (min == -1 || min > length) {
+			min = length ;
+			// 중복을 제외하고, 첫번째 인덱스를 기준으로 해서 출력이 될것.
+		}
+		length -= route[path[16]][path[0]] ;
+	}
+	else {
+		for ( i = 0 ; i < 17 ; i++) {
+			if (covered[i] == 0) {
+				path[idx] = i ;
+				covered[i] = 1 ;
+				length += route[path[idx-1]][i] ;
+				_travel(idx+1) ; // 재귀적으로 들어가는 부분. idx를 늘리면서 간다.
+				length -= route[path[idx-1]][i] ;
+				covered[i] = 0 ;
+			}
+		}
+	}
+}
+
+/***************** Master(main) Process *******************/
 int
 main(int argc, char** argv){
 	// argv[0] = exe command , argv[1] = tsp file instance , argv[2] = number of children 
 
 	pid_t pid ;
 	int i = 0, j = 0, t= 0; // variables for loops or something
-	int exit_code, children =0 ;
+	int *prefix ; // prefix는 0부터 N-13까지의 인덱스를 가진 배열
+	int children =0 ;
 	char f_input[1024] ;
 
 
@@ -155,9 +196,9 @@ main(int argc, char** argv){
 		fgets(f_input, sizeof(f_input), fp) ;
 		lines++ ; 
 	}
-	f_input[0] = 0x0 ; //clear the input buffer
+	f_input[0] = 0x0 ; // clear the input buffer
 
-	int **route = (int**) malloc(sizeof(int*) * lines) ;
+	**route = (int**) malloc(sizeof(int*) * lines) ;
 	for(i = 0 ; i< lines ; i++){
 		route[i] = (int*) malloc(sizeof(int) * lines) ;
 		memset(route[i] , 0, sizeof(int) * lines) ;
@@ -169,25 +210,26 @@ main(int argc, char** argv){
 			fscanf(fp, "%d", &t) ;
 			route[i][j] = t ;
 		}
+		path[i] = i ;
 	}
 	fclose(fp) ; 
-
-    init_prefix(route) ;
-
+	prefix = (int)calloc(lines-12, sizeof(int*)) ;
+    //prefix = init_prefix() ; // 그럼 이제 [0 1 2 ~ ] 초기화 됐을 것.
+	
 	/* creating Children Processes */
-	while(path != end_prefix){
+	while( prefix != end_prefix() ){ // prefix가 마지막 시티들 수의 조합이 될 때까지
         if ( children == argv[2] ) {
-            pid = wait() ;
+            pid = wait(0x0) ;
             children-- ;
-//            read_result_and update_best(pid) ; 
+//            read_result_and_update_best(pid) ; 
         }
-        if (terminate == 0) {
-            spawning(path) ;
+        if ( terminate == FALSE ) {
+            spawning(prefix) ;
             children++ ;
-            next(path) ;
+            prefix = next_prefix(0) ;
         }
         else{ // when terminate is 1(True)
-            if (children == 0){
+            if ( children == 0 ){
                 /* Deallocating the route table then terminate normally */
                 for(i = 0 ; i < lines ; i++) {    free(route[i]) ;  }
                 free(route) ;

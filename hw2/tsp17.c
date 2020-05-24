@@ -57,6 +57,6 @@ int main() {
 	}
 	fclose(fp) ;
 
-	for (i = 0  ; i < 17 ; i++) 
+	for (i = 0  ; i < 17 ; i++)
 		travel(i) ;
 }
