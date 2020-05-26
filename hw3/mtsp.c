@@ -104,7 +104,6 @@ void getPrefix(int start) ;
 void
 subtasking(int depth){ // such as permutation nPk
 	int i ;
-	int exit_code = 0;
 
 	if (terminate == TRUE) // get signalling while processing
 		return ;
@@ -206,8 +205,7 @@ bounded_buffer_dequeue(bounded_buffer * buf){
 /********************* Producer  ********************/
 void *
 producer(void * ptr){
-	char msg[128] ;
-	void (*fp)(int) = NULL ; // function pointer and transfer through bounded_buffer
+	//void (*fp)(int) = NULL ; // function pointer and transfer through bounded_buffer
 
 	pthread_t tid ;
 	int i ;
@@ -217,7 +215,7 @@ producer(void * ptr){
 	subtasking(0) ;
 
 	//bounded_buffer_enqueue(buf, subtasking) ;
-	free(fp) ;
+	//free(fp) ;
 	return 0x0 ;
 }
 
@@ -313,10 +311,10 @@ main(int argc, char** argv){
 		scanf("%d",&cmd) ;
 		switch(cmd){
 			case 1: // stat function
-				// stat() ;
+				 stat() ;
 				break ;
 			case 2: // threads function
-				// threads() ;
+				 //threads() ;
 				break ;
 			case 3: // number_N fucntion 
 				printf("Please type the number you want to change: ") ;
