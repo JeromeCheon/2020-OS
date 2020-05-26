@@ -84,7 +84,6 @@ main(){
 	pthread_t prod[5] ;
 	pthread_t cons[5] ;
 	int i ;
-
 	buf = malloc(sizeof(nonblocking_buffer)) ;
 	nonblocking_buffer_init(buf, 3) ;
 	
@@ -92,6 +91,7 @@ main(){
 		pthread_create(&(prod[i]), 0x0, producer, 0x0) ;
 		pthread_create(&(cons[i]), 0x0, consumer, 0x0) ;
 	}
+
 	for(i = 0; i < 5 ; i++){
 		pthread_join(prod[i], 0x0) ;
 		pthread_join(cons[i], 0x0) ;
