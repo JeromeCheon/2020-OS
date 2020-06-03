@@ -7,7 +7,7 @@
 void spin()
 {
 	int i ;
-	for (i = 0 ; i < 10000000 ; i++) ;
+	for (i = 0 ; i < 50000 ; i++) ;
 }
 
 void *print_message_function( void *ptr )
@@ -18,8 +18,8 @@ void *print_message_function( void *ptr )
 	int i = 0 ;
 	for (i = 0 ; i < 10 ; i++)  {
 		printf("%s\n", message) ;
-		spin() ;
-		//sched_yield() ;
+		//spin() ;
+		sched_yield() ;
 	}
 }
 
