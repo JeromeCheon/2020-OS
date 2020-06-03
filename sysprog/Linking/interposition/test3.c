@@ -8,7 +8,6 @@ int f() {
 int main()
 {
 	printf("Hello\n") ;
-
 	int * p = malloc(32) ;
 	f() ;
 	free(p) ;
