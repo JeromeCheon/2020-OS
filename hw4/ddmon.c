@@ -1,85 +1,63 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
-#include <dlfcn.h>
+#include <pthread.h> 	// for replacing Pthread API
+#include <dlfcn.h> 	// for using shared library symbols.
 #include <string.h>
+#include <errno.h>   // for error handling 
 #include <execinfo.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <unistd.h>		// open and close function
+#include <fcntl.h>  	// O_WRONLY
 #include <sys/types.h>
-#include <sys/stat.h>
-
 // replace the original function to redefined function of pthread API
 // those are 'pthread_mutex_lock' and 'pthread_mutex_unlock'
 
+typedef struct {
+	pthread_t tid ; //  to contain caller's thread ID
+	int weight ;
+	pthread_mutex_t* ptr ;  //  to contain the pointer address of mutex variable
+} mutexInfo ;
+
+mutexInfo* mi = 0x0 ;
+int count = 1 ;
 
 int
 pthread_mutex_lock(pthread_mutex_t *mutex){
-	static __thread int n_locks = 0 ;
-	//n_locks += 1 ;
-	void *(*lockp)(pthread_mutex_t *t) ;  		// function pointer
-	char * error ;
-	FILE* fd ;
+	int (*lockp)(pthread_mutex_t *) = NULL ; // function pointer
+	mi = (mutexInfo*)malloc(sizeof(mutexInfo)) ;
+	mi->tid = pthread_self() ;
+	mi->ptr = mutex ;
+	mi->weight = count++ ; // for giving some temperary weight of edge
 
-	lockp =dlsym(RTLD_NEXT, "pthread_mutex_lock") ;
+	char * error ;
+	int fd, i ;
+
+	lockp = dlsym(RTLD_NEXT, "pthread_mutex_lock") ;
 	if ((error = dlerror()) != 0x0)
 		exit(1) ;
-	char* ptr = lockp(&t) ;
+	int ptr = lockp(mutex) ; // always be 0 if it's successful 
 
-	// make FIFO named pipe	
-	if (mkfifo(".ddtrace", 0666)){
-		// errno : integer variable. it contains some error information occured by a function of previous library. 
-		if(errno != EEXIST){ // The named file doesn't exist
-			perror("fail to make fifo: \n") ;
-			exit(1) ;
-		}
-	}
-	fd = popen(".ddtrace", "w") ; // write only 
-	if ( fp == 0x0 ){
+	//fwrite vs fputs . mutex value has to be sent via writing in the pipe. 
+	char buf[128] ;
+	snprintf( buf, 128, "thread[%lu] acquired pthread_mutex_lock(%p). \n", (unsigned long)(mi->tid), mi->ptr ) ; 
+	fputs(buf, stderr) ;
+	buf[0] = 0x0 ;
+
+	if ( (fd = open(".ddtrace", O_WRONLY | O_SYNC )) == -1 ){ // write only
 		perror("fail to open the pipe. \n") ;
 		exit(1) ;
 	}
-
-	/*if ( n_locks == 1 ){
-		int i ;
-		void * arr[10] ;
-	}*/
-
-	//n_locks -= 1 ;
-	pclose(fd) ;
-	return 0 ;
-}
-
-int
-pthread_mutex_unlock(pthread_mutex_t *mutex){
-	static __thread int n_unlocks = 0 ;
-	//n_unlocks += 1 ;
-	void *(*unlockp)(pthread_mutex_t *t) ; 		// function pointer
-	char * error ;
-	FILE* fd ;
-	unlockp =dlsym(RTLD_NEXT, "pthread_mutex_unlock") ;
-	if ((error = dlerror()) != 0x0)
-		exit(1) ;
-	char* ptr = unlockp(&t) ;
-
-	// make FIFO named pipe	
-	if (mkfifo(".ddtrace", 0666)){
-		// errno : integer variable. it contains some error information occured by a function of previous library. 
-		if(errno != EEXIST){ // The named file doesn't exist
-			perror("fail to make fifo: ") ;
-			exit(1) ;
-		}
+	// just send the pointer address of mutex 
+	//while(1){	 // this is useless
+		write(fd, (struct mutexInfo*)&mi, sizeof(mi)) ;
+		
+	//}
+	if( close(fd) == -1 ){ // if fails to close the pipe
+		fprintf(stderr, "something happened that interrupted closing pipe. \n") ;
 	}
 
-	fd = popen(".ddtrace", "w") ; // write only 
-	
-	//if ( n_unlocks == 1 ){
-		int i ;
-		void * arr[10] ;
-	//}
-
-	//n_unlocks -= 1 ;
-	pclose(fd) ;
-	return 0 ;
+	free(mi) ;
+	//pthread_mutex_unlock(mutex) ; // it might be necessary to give a next lock
+	return ptr ;
 }
+

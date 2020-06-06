@@ -86,7 +86,7 @@ main(){
 	int phids[5] = { 0, 1, 2, 3, 4} ;
 	pthread_t threads[5] ;
 	int i ;
-
+	
 	srand(time(0x0)) ;
 	pthread_mutex_init(&lock, 0x0) ;
 	
