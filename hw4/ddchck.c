@@ -1,94 +1,109 @@
 #include <stdio.h>
 #include <string.h>  	// for string functions.
-#include <unistd.h>		// open and close function
+#include <unistd.h>		// read and close function
 #include <errno.h>		// perror
 #include <stdlib.h>
-#include <fcntl.h>		// O_RDONLY
+#include <fcntl.h>		// open system call
 #include <sys/types.h>
 #include <pthread.h>	// for using pthread API
 
-typedef struct {
-	pthread_t tid ;
-	int weight ;
-	pthread_mutex_t* ptr ;
-} mutexInfo ;
+#define TRUE 1		// indicators of cycle in graph
+#define FALSE 0
 
-typedef struct _Vertex{
-	mutexInfo* node ;
-	struct _Vertex* next ;
-} Vertex ;
+unsigned long node[20] = { 0, } ; // A total nodes are 10 threads + 10 mutexes as an assumption
+int visited[20] = { 0, } ; // for checking if there can be made any cycle 
+int m[10][10] = { 0, } ; // to indicate if there is adjacent node or not
 
-typedef struct _lockgraph{
-	Vertex *order[10] ;
-} lockgraph ;
+int idxOftid = 0 ;
+int idxOfmutex = 10 ;
+/********* To construct a lockgraph algorithm using resource allocation ********/
+//		 threads : processes    ||		mutexes : resources
 
-lockgraph* l = 0x0 ;
 
-Vertex*
-newVertex(mutexInfo* t) {
-	Vertex* new = (Vertex*)malloc(sizeof(Vertex)) ;
-	new->node = t ;
-	new->next = NULL ;
-	return new ;
+void			// function to create Process nodes
+creatNode(unsigned long tid) {
+	node[idxOftid] = tid ;
+	idxOftid += 1 ;
+}
+void			// function to create Resource nodes 
+creatMtres(pthread_mutex_t *lockV){
+	node[idxOfmutex] = (unsigned long)lockV ;
+	idxOfmutex += 1 ;
 }
 
 void
-addEdge(lockgraph* l, mutexInfo* from, mutexInfo* index){
-	int i = 0 ;
-	Vertex* new = newVertex(from) ;
-	new->node = l->order[from->weight]->node ;
-	new->next = l->order[from->weight] ;
-	l->order[from->weight]->next = new ;
-}
-
-void
-graphInit(lockgraph* l, int amount){
-	int i = 0 ; 
-	//l->order = (Vertex*)malloc( sizeof(Vertex) * amount ) ;
-	for( i = 0 ; i < amount ; i++){
-		l->order[i] = NULL ;
+addEdge(unsigned long tid, pthread_mutex_t *lockV){
+	int i, j ;
+	for ( i = 0; i < idxOftid ; i++ ){ // checking if there is already existed
+		if( node[i] == tid )
+			break ;
 	}
-
+	if ( node[i] != tid ){		// unless create a new node of process(thread)
+		creatNode(tid) ;
+		i = idxOftid ;
+	}
+	for ( j = 10 ; j < idxOftid ; j++ ){ // checking if there is already existed
+		if ( node[j] == (unsigned long)lockV )
+			break ;	
+	}
+	if ( node[j] != (unsigned long)lockV ){	// unless create a new node of resource(mutex)
+		creatMtres(lockV) ;
+		j = idxOfmutex ;
+	}
+	m[i][j] = 1 ;	 // make an edge between tid and lockV
 }
+
+void			// reverse with addEdge. 
+releaseLock(unsigned long tid, pthread_mutex_t *lockV){
+	int i, j ;
+	for ( i = 0; i < idxOftid ; i++ ){
+		if( node[i] == tid )
+			break ;
+	}
+	if ( node[i] != tid ){
+		creatNode(tid) ;
+		i = idxOftid ;
+	}
+	for ( j = 10 ; j < idxOftid ; j++ ){
+		if ( node[j] == (unsigned long)lockV )
+			break ;	
+	}
+	if ( node[j] != (unsigned long)lockV ){
+		creatMtres(lockV) ;
+		j = idxOfmutex ;
+	}
+	m[i][j] = 0 ;
+	// then how can I remove thread Nx ???
+}
+/***** Should make a function which checks any cycles in the graph *****/
+
+// void dfs(){}  // for traversal the graph in height order
+// int cycle(){ return TRUE or FALSE }  // TRUE -> Deadlock detected 
 
 int
 main(int argc, char** argv){
 	int fd ;
-	int i = 0;
+	unsigned long process ;		 // to store the identifier of thread
+	pthread_mutex_t *resource ;  // to store the mutex variable addresses
 	if ((fd = open(".ddtrace", O_RDONLY | O_SYNC)) == -1 ){ // open named pipe
 		perror("fail to open the pipe. \n") ;
 		exit(1) ;
 	}
-	printf("test before making lockgraph") ;	
-	l = (lockgraph*)malloc(sizeof(lockgraph)) ;
-	graphInit(l, 10) ;
 
 	while(1) {
 		int len ;
-		if ((len = read(fd, (struct mutexInfo*)l->order[i]->node , sizeof(mutexInfo)) ) == -1)
+		char buf[256] ;
+		if ((len = read(fd, buf , sizeof(buf)) ) == -1)
 			break ;
 		if (len > 0){
-			printf("read thread[%lu] the mutex address (%p)\n", (unsigned long)(l->order[i]->node->tid), l->order[i]->node->ptr ) ;	
+			sscanf(buf, "%lu %p", &process , &resource) ;
+			
+			addEdge(process, resource) ;
+			printf("thread[%lu] made an edge with mutex(%p)\n", process, resource) ;
+			buf[0] = 0x0 ;
 		}
-		i++ ;
 	}
-	/*fp = popen(".ddtrace", "r") ;
-	if (fp == 0x0 )
-		return 1 ;
 
-	while(1) {
-		// lock graph algorithm. to detect any deadlocks in target programs
-		char s[128] ;
-		int len ;
-		// read data as a string 
-		if ((len = read(fp, s, 128)) == -1)
-			break ;
-		//sscanf(s, "%llu", &tmp) ; 
-		if (len > 0)
-			printf("%s\n", s) ;
-
-	}*/
 	close(fd) ;
-	free(l) ;
 	return 0 ;
 }
