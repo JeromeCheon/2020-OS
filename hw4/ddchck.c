@@ -11,7 +11,7 @@
 #define FALSE 0
 
 unsigned long node[20] = { 0, } ; // A total nodes are 10 threads + 10 mutexes as an assumption
-int visited[20] = { 0, } ; // for checking if there can be made any cycle 
+int visited[20] = { 0, } ; // for checking if there can be made any cycle
 int m[10][10] = { 0, } ; // to indicate if there is adjacent node or not
 
 int idxOftid = 0 ;
@@ -25,7 +25,7 @@ creatNode(unsigned long tid) {
 	node[idxOftid] = tid ;
 	idxOftid += 1 ;
 }
-void			// function to create Resource nodes 
+void			// function to create Resource nodes
 creatMtres(pthread_mutex_t *lockV){
 	node[idxOfmutex] = (unsigned long)lockV ;
 	idxOfmutex += 1 ;
@@ -44,7 +44,7 @@ addEdge(unsigned long tid, pthread_mutex_t *lockV){
 	}
 	for ( j = 10 ; j < idxOftid ; j++ ){ // checking if there is already existed
 		if ( node[j] == (unsigned long)lockV )
-			break ;	
+			break ;
 	}
 	if ( node[j] != (unsigned long)lockV ){	// unless create a new node of resource(mutex)
 		creatMtres(lockV) ;
@@ -53,32 +53,33 @@ addEdge(unsigned long tid, pthread_mutex_t *lockV){
 	m[i][j] = 1 ;	 // make an edge between tid and lockV
 }
 
-void			// reverse with addEdge. 
+void			// reverse with addEdge.
 releaseLock(unsigned long tid, pthread_mutex_t *lockV){
 	int i, j ;
-	for ( i = 0; i < idxOftid ; i++ ){
+	for ( i = 0; i < idxOftid ; i++ ){ // checking if there is already existed
 		if( node[i] == tid )
 			break ;
 	}
-	if ( node[i] != tid ){
+	if ( node[i] != tid ){ 	// unless create a new node of process(thread)
 		creatNode(tid) ;
 		i = idxOftid ;
 	}
-	for ( j = 10 ; j < idxOftid ; j++ ){
+	for ( j = 10 ; j < idxOftid ; j++ ){ 	// checking if there is already existed
 		if ( node[j] == (unsigned long)lockV )
-			break ;	
+			break ;
 	}
-	if ( node[j] != (unsigned long)lockV ){
+	if ( node[j] != (unsigned long)lockV ){ 	// unless create a new node of resource(mutex)
 		creatMtres(lockV) ;
 		j = idxOfmutex ;
 	}
-	m[i][j] = 0 ;
+	m[i][j] = 0 ; 	// remove the edge between tid and lockV
+
 	// then how can I remove thread Nx ???
 }
 /***** Should make a function which checks any cycles in the graph *****/
 
 // void dfs(){}  // for traversal the graph in height order
-// int cycle(){ return TRUE or FALSE }  // TRUE -> Deadlock detected 
+// int cycle(){ return TRUE or FALSE }  // TRUE -> Deadlock detected
 
 int
 main(int argc, char** argv){
@@ -97,7 +98,7 @@ main(int argc, char** argv){
 			break ;
 		if (len > 0){
 			sscanf(buf, "%lu %p", &process , &resource) ;
-			
+			// and add these information into addEdge below
 			addEdge(process, resource) ;
 			printf("thread[%lu] made an edge with mutex(%p)\n", process, resource) ;
 			buf[0] = 0x0 ;
