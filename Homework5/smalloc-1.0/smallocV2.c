@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include "smalloc.h" 
 
-int totalpages = 0 ;
+int totalpages = 0 ; // this global variable is for task3
 
 
 sm_container_t sm_head = {
