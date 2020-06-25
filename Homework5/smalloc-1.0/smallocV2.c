@@ -124,13 +124,13 @@ print_sm_containers ()
 	int i ;
 
 	printf("==================== sm_containers ====================\n") ;
-	for (itr = sm_head.next, i = 0 ; itr != &sm_head ; itr = itr->next, i++) {
+	for (itr = sm_head.next, i = 0 ; (itr != &sm_head) || (i == 10) ; itr = itr->next, i++) {
 		printf("%3d:%p:%s:", i, _data(itr), itr->status == Unused ? "Unused" : "  Busy") ;
 		printf("%8d:", (int) itr->dsize) ;
 
 		int j ;
 		char * s = (char *) _data(itr) ;
-		for (j = 0 ; j < (itr->dsize >= 8 ? 8 : itr->dsize) ; j++) 
+		for (j = 0 ; (j < (itr->dsize >= 8 ? 8 : itr->dsize)) || (j==15) ; j++) 
 			printf("%02x ", s[j]) ;
 		printf("\n") ;
 	}
@@ -162,7 +162,56 @@ print_mem_uses (){
 
 void *
 srealloc(void* p, size_t nsize) {
-	// couldn't implement in time due to lack of the time individually.. 
+
+	sm_container_ptr  hole = 0x0, itr= 0x0 ;
+	void* tmp ;
+	
+	if (p == NULL){ // if p is null pointer, just work as a smalloc function.
+		return smalloc(nsize) ;
+	}
+	/* should have to consider if nsize is less than current or more than */
+	for (itr = sm_head.next ; itr != &sm_head ; itr = itr->next){
+		if( p == _data(itr) ){ // found the target address
+			tmp = p ;
+			if (nsize == 0) { // if nsize is 0, it means deallocate the memory
+				//tmp = itr->next ;
+				//tmp->status = Unused ;
+				sfree(tmp) ;
+				break ;
+			}
+			if( (nsize == itr->dsize) || (nsize + sizeof(sm_container_t) < itr->dsize)) { // nsize <= original, left over is 'unused'
+				sm_container_split(itr, nsize) ;
+				return _data(itr) ;	
+			}
+			else{ // nsize > itr->dsize, needs to be extended or replacing it.
+				if (( nsize + sizeof(sm_container_t) < itr->next->dsize) && ( itr->next->status == Unused )){
+					// if there is enough memory space in adjacent unused hole, then extend
+					hole = itr ;
+					hole->dsize += (itr->next->dsize + sizeof(sm_container_t) );
+					hole->next = itr->next->next ;
+					hole->prev = itr->prev->prev ;
+					sfree(itr) ;
+					sm_container_split(hole, nsize) ;
+					hole->status = Busy ;
+					return _data(hole) ;
+				}
+				else{
+					// not much space even in adjacent side, so need to allocate the new one
+					sfree(p) ;
+					//itr->next = &sm_head ;
+					//itr->prev = sm_head.prev ;
+					//(sm_head.prev)->next = itr ;
+					//sm_head.prev = itr ;
+					
+					//sfree(p) ;	
+					return smalloc(nsize) ;
+					
+				}
+			}
+		}
+	}
+	return 0x0 ;
+		
 }
 
 void 

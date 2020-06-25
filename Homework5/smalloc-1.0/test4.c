@@ -5,6 +5,7 @@ int
 main()
 {
 	void *p1, *p2, *p3, *p4, *p5, *p6 ;
+	void *resizing1, *resizing2 ;
 
 	print_sm_containers() ;
 
@@ -39,6 +40,14 @@ main()
 	p6 = smalloc(100) ; 
 	printf("smalloc(100):%p\n", p6) ; 
 	print_sm_containers() ;
+
+	resizing1 = srealloc(p5, 2500) ; 
+	printf("srealloc(%p, 2500) now :%p \n", p5, resizing1 ) ; 
+	print_sm_containers() ;
+
+	/*resizing2 = srealloc(p6, 0) ; 
+	printf("srealloc(%p, 0) now :%p \n", p6, resizing2 ) ; 
+	print_sm_containers() ;*/
 	// task 3 
 	print_mem_uses() ;
 }
